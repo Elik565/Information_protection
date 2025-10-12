@@ -2,19 +2,20 @@
 #include <random>
 #include <iostream>
 
-std::string generateLN(const int size) {
+std::string generateLN(int size) {
+    static std::mt19937 gen(std::random_device{}());
+    std::uniform_int_distribution<int> signDist(0, 1);
+    std::uniform_int_distribution<int> firstDigitDist(1, 9);
+    std::uniform_int_distribution<int> digitDist(0, 9);
+
     std::string LN;
-    LN.reserve(size);  // сразу выделяем память
+    LN.reserve(size + 1);  // выделяем место под знак
 
-    char sign = (rand() % 1 == 0) ? '-' : '+';
-    LN += sign;
+    LN += (signDist(gen) == 0) ? '-' : '+';
+    LN += static_cast<char>('0' + firstDigitDist(gen));  // без ведущего нуля
 
-    LN += '1' + rand() % 9;  // предотвращаем ведущие нули
-
-    for (int i = 0; i < size - 1; i++) {
-        char digit = rand() % 10 + '0';
-        LN += digit;
-    }
+    for (int i = 1; i < size; ++i)
+        LN += static_cast<char>('0' + digitDist(gen));
 
     return LN;
 }
@@ -106,9 +107,11 @@ LargeNumber LNMath::absSub(const LargeNumber& a, const LargeNumber& b) {
     const LargeNumber* smaller;
 
     if (compare == 1) {
+        result.positive = a.positive;
         bigger = &a;
         smaller = &b;
     } else if (compare == -1) {
+        result.positive = b.positive;
         bigger = &b;
         smaller = &a;
     } else {

@@ -2,22 +2,21 @@
 #include <iostream>
 
 int main() {
-    // Длины чисел
-    int size1 = 0;
-    int size2 = 0;
+    // // Длины чисел
+    // int size1 = 0;
+    // int size2 = 0;
 
-    std::cout << "Enter size of first number: ";
-    std::cin >> size1;
-    std::cout << "Enter size of second number: ";
-    std::cin >> size2;
+    // std::cout << "Enter size of first number: ";
+    // std::cin >> size1;
+    // std::cout << "Enter size of second number: ";
+    // std::cin >> size2;
 
-    // Генерируем два числа в виде строки
-    std::string stringLN1 = generateLN(size1);
-    std::string stringLN2 = generateLN(size2);
+    // // Генерируем два числа в виде строки
+    // std::string stringLN1 = generateLN(size1);
+    // std::string stringLN2 = generateLN(size2);
 
-    
-    std::cin >> stringLN1;
-    std::cin >> stringLN2;
+    std::string stringLN1 = "+1876592303";
+    std::string stringLN2 = "-9887639245290";
 
     std::cout << "First number: " << stringLN1 << "\n";
     std::cout << "Second number: " << stringLN2 << "\n";
