@@ -26,6 +26,7 @@ public:
     static LargeNumber sub(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber mult(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber div(const LargeNumber& a, const LargeNumber& b);
+    static LargeNumber pow(const LargeNumber& a, const LargeNumber& b);
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);

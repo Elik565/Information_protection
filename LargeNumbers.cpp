@@ -84,7 +84,7 @@ LargeNumber LNMath::sub(const LargeNumber& a, const LargeNumber& b) {
         result.positive = a.positive;
     }
 
-    // удаляем ведущие нули
+    // Удаляем ведущие нули
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
 
@@ -118,7 +118,7 @@ LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
         }
     }
 
-    // Убираем ведущие нули
+    // Удаляем ведущие нули
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
 
@@ -129,11 +129,10 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber result;
     result.positive = (a.positive == b.positive);
 
-    if (b.large_number[0] == 0) {
+    if (b.large_number.size() == 1 && b.large_number[0] == 0)
         throw std::runtime_error("Error: division by zero!");
-    }
 
-   if (compareLN(a, b) < 0) {
+    if (compareLN(a, b) < 0) {
         result.large_number.push_back(0);
         result.positive = true;
         return result;
@@ -142,27 +141,25 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber dividend = a;
     LargeNumber divisor = b;
     LargeNumber current;
-    current.large_number.clear();
-
     result.large_number.assign(dividend.large_number.size(), 0);
 
-    for (size_t i = dividend.large_number.size(); i-- > 0;) {
-        // Сдвигаем блоки в current
+    // Проходим с конца (старших блоков) к младшим — i = size()-1 → 0
+    for (int i = (int)dividend.large_number.size() - 1; i >= 0; --i) {
+        // "сдвигаем" current влево и добавляем старший блок
         current.large_number.insert(current.large_number.begin(), dividend.large_number[i]);
 
-        // Убираем ведущие нули
+        // убираем ведущие нули
         while (current.large_number.size() > 1 && current.large_number.back() == 0)
             current.large_number.pop_back();
 
         uint32_t left = 0, right = BASE - 1, x = 0;
 
-        // Бинарный поиск коэффициента x
+        // бинарный поиск
         while (left <= right) {
             uint32_t mid = (left + right) / 2;
-
-            LargeNumber temp;
-            temp.large_number.push_back(mid);
-            temp = mult(divisor, temp);
+            LargeNumber LNmid;
+            LNmid.large_number.push_back(mid);
+            LargeNumber temp = mult(divisor, LNmid);
 
             if (compareLN(temp, current) <= 0) {
                 x = mid;
@@ -173,16 +170,57 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
         }
 
         result.large_number[i] = x;
-
-        LargeNumber temp;
-        temp.large_number.push_back(x);
-        current = absSub(current, mult(divisor, temp));
+        LargeNumber LNx;
+        LNx.large_number.push_back(x);
+        LargeNumber temp = mult(divisor, LNx);
+        current = absSub(current, temp);
     }
 
-    // Убираем ведущие нули
+    // Удаляем ведущие нули
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
 
+    return result;
+}
+
+LargeNumber LNMath::pow(const LargeNumber& a, const LargeNumber& b) {
+    if (!b.positive) {
+        throw std::runtime_error("Error: power is negative!");
+    }
+
+    LargeNumber result;
+    
+    if (b.large_number[0] == 0) {
+        result.large_number.push_back(1);
+        return result;
+    }
+
+    LargeNumber base = a;
+    LargeNumber pow = b;
+    LargeNumber zero;
+    zero.large_number.push_back(0);
+    result.large_number.push_back(1);
+
+    while (compareLN(pow, zero) > 0) {
+        // если степень нечетная, то умножаем результат на base
+        if (pow.large_number[0] % 2 == 1) {
+            result = mult(result, base);
+        }
+        base = mult(base, base);
+        
+        // делим степень на 2
+        uint32_t carry = 0;
+        for (int i = pow.large_number.size() - 1; i >= 0; --i) {
+            uint64_t cur = (uint64_t)carry * BASE + pow.large_number[i];
+            pow.large_number[i] = cur / 2;
+            carry = cur % 2;
+        }
+        // Убираем ведущие нули
+        while (pow.large_number.size() > 1 && pow.large_number.back() == 0)
+            pow.large_number.pop_back();
+    }
+
+    result.positive = (a.positive || (b.large_number[0] % 2 == 0));
     return result;
 }
 

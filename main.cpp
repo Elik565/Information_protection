@@ -15,8 +15,8 @@ int main() {
     // std::string stringLN1 = generateLN(size1);
     // std::string stringLN2 = generateLN(size2);
 
-    std::string stringLN1 = "+56786412386";
-    std::string stringLN2 = "-6658679127";
+    std::string stringLN1 = "-987234876823241";
+    std::string stringLN2 = "-3";
 
     std::cout << "First number: " << stringLN1 << "\n";
     std::cout << "Second number: " << stringLN2 << "\n";
@@ -36,6 +36,9 @@ int main() {
 
     LargeNumber Quotient = LNMath::div(LN1, LN2);
     std::cout << "Quotient = " << Quotient.toString() << "\n";
+
+    LargeNumber Powered = LNMath::pow(LN1, LN2);
+    std::cout << "Powered = " << Powered.toString() << "\n";
 
     return 0;
 }
