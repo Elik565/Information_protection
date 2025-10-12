@@ -47,6 +47,10 @@ std::string LargeNumber::toString() {
 
     positive ? str +=  "+" : str += "-";
 
+    if (large_number[0] == 0) {
+        str.erase(0);  // ноль не положительное, и не отрицательное
+    }
+
     str += std::to_string(large_number.back());
 
     for (int i = large_number.size() - 2; i >= 0; --i) {
@@ -59,10 +63,135 @@ std::string LargeNumber::toString() {
     return str;
 }
 
+LargeNumber LNMath::sum(const LargeNumber& a, const LargeNumber& b) {
+    return a.positive == b.positive ? absSum(a, b) : absSub(a, b);
+}
+
+LargeNumber LNMath::sub(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber result;
+
+    if (a.positive == b.positive) {
+        int cmp = compareLN(a, b);
+        if (cmp >= 0) {
+            result = absSub(a, b);
+            result.positive = a.positive;
+        } else {
+            result = absSub(b, a);
+            result.positive = !a.positive; // знак меняется
+        }
+    } else {
+        result = absSum(a, b);
+        result.positive = a.positive;
+    }
+
+    // удаляем ведущие нули
+    while (result.large_number.size() > 1 && result.large_number.back() == 0)
+        result.large_number.pop_back();
+
+    return result;
+}
+
+LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber result;
+    a.positive == b.positive ? result.positive = true : result.positive = false;
+
+    if (a.large_number[0] == 0 || b.large_number[0] == 0) {
+        result.large_number = {0};
+        return result;
+    }
+
+    size_t A = a.large_number.size();
+    size_t B = b.large_number.size();
+    result.large_number.assign(A + B, 0);
+
+    for (size_t i = 0; i < A; i++) {
+        uint64_t carry = 0;
+
+        for (size_t j = 0; j < B || carry > 0; j++) {
+            uint64_t blockA = a.large_number[i];
+            uint64_t blockB = (j < B) ? b.large_number[j] : 0;
+
+            uint64_t cur = result.large_number[i + j] + blockA * blockB + carry;
+
+            result.large_number[i + j] = cur % BASE;
+            carry = cur / BASE;
+        }
+    }
+
+    // Убираем ведущие нули
+    while (result.large_number.size() > 1 && result.large_number.back() == 0)
+        result.large_number.pop_back();
+
+    return result;
+}
+
+LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber result;
+    result.positive = (a.positive == b.positive);
+
+    if (b.large_number[0] == 0) {
+        throw std::runtime_error("Error: division by zero!");
+    }
+
+   if (compareLN(a, b) < 0) {
+        result.large_number.push_back(0);
+        result.positive = true;
+        return result;
+    }
+
+    LargeNumber dividend = a;
+    LargeNumber divisor = b;
+    LargeNumber current;
+    current.large_number.clear();
+
+    result.large_number.assign(dividend.large_number.size(), 0);
+
+    for (size_t i = dividend.large_number.size(); i-- > 0;) {
+        // Сдвигаем блоки в current
+        current.large_number.insert(current.large_number.begin(), dividend.large_number[i]);
+
+        // Убираем ведущие нули
+        while (current.large_number.size() > 1 && current.large_number.back() == 0)
+            current.large_number.pop_back();
+
+        uint32_t left = 0, right = BASE - 1, x = 0;
+
+        // Бинарный поиск коэффициента x
+        while (left <= right) {
+            uint32_t mid = (left + right) / 2;
+
+            LargeNumber temp;
+            temp.large_number.push_back(mid);
+            temp = mult(divisor, temp);
+
+            if (compareLN(temp, current) <= 0) {
+                x = mid;
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+
+        result.large_number[i] = x;
+
+        LargeNumber temp;
+        temp.large_number.push_back(x);
+        current = absSub(current, mult(divisor, temp));
+    }
+
+    // Убираем ведущие нули
+    while (result.large_number.size() > 1 && result.large_number.back() == 0)
+        result.large_number.pop_back();
+
+    return result;
+}
+
 int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {
-    if (a.large_number.size() > b.large_number.size()) return 1;
-    else if (a.large_number.size() < b.large_number.size()) return -1;
-    else {
+    if (a.large_number.size() > b.large_number.size()) {
+        return 1;
+    } else if (a.large_number.size() < b.large_number.size()) {
+        return -1;
+    } else {
         for (int i = a.large_number.size() - 1; i >= 0; --i) {
             if (a.large_number[i] > b.large_number[i]) return 1;
             if (a.large_number[i] < b.large_number[i]) return -1;
@@ -72,14 +201,9 @@ int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {
     return 0;
 }
 
-LargeNumber LNMath::sum(const LargeNumber& a, const LargeNumber& b) {
-    return a.positive == b.positive ? absSum(a, b) : absSub(a, b);
-}
-
 LargeNumber LNMath::absSum(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber result;
-
-    a.positive ? result.positive = true : result.positive = false;
+    result.positive = (a.positive == b.positive);
 
     uint64_t carry = 0;  // для переноса
     
