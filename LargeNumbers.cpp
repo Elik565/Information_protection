@@ -84,10 +84,6 @@ LargeNumber LNMath::sub(const LargeNumber& a, const LargeNumber& b) {
         result.positive = a.positive;
     }
 
-    // Удаляем ведущие нули
-    while (result.large_number.size() > 1 && result.large_number.back() == 0)
-        result.large_number.pop_back();
-
     return result;
 }
 
@@ -107,18 +103,18 @@ LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
     for (size_t i = 0; i < A; i++) {
         uint64_t carry = 0;
 
+        // Каждый блок второго числа домножаем на блок первого
         for (size_t j = 0; j < B || carry > 0; j++) {
             uint64_t blockA = a.large_number[i];
             uint64_t blockB = (j < B) ? b.large_number[j] : 0;
 
             uint64_t cur = result.large_number[i + j] + blockA * blockB + carry;
 
-            result.large_number[i + j] = cur % BASE;
+            result.large_number[i + j] = cur % BASE;  // перезаписываем, т.к. учли на пред. шаге
             carry = cur / BASE;
         }
     }
 
-    // Удаляем ведущие нули
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
 
@@ -132,6 +128,7 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
     if (b.large_number.size() == 1 && b.large_number[0] == 0)
         throw std::runtime_error("Error: division by zero!");
 
+    // Меньшее делим на большее
     if (compareLN(a, b) < 0) {
         result.large_number.push_back(0);
         result.positive = true;
@@ -143,24 +140,25 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber current;
     result.large_number.assign(dividend.large_number.size(), 0);
 
-    // Проходим с конца (старших блоков) к младшим — i = size()-1 → 0
-    for (int i = (int)dividend.large_number.size() - 1; i >= 0; --i) {
-        // "сдвигаем" current влево и добавляем старший блок
+    // Проходим с конца большего числа (делимого)
+    for (int i = dividend.large_number.size() - 1; i >= 0; --i) {
+        // Сдвигаем current влево и добавляем старший блок
         current.large_number.insert(current.large_number.begin(), dividend.large_number[i]);
 
-        // убираем ведущие нули
         while (current.large_number.size() > 1 && current.large_number.back() == 0)
             current.large_number.pop_back();
 
         uint32_t left = 0, right = BASE - 1, x = 0;
 
-        // бинарный поиск
+        // Находим сколько раз делитель помещается в текущем остатке
+        // Бинарный поиск
         while (left <= right) {
             uint32_t mid = (left + right) / 2;
             LargeNumber LNmid;
             LNmid.large_number.push_back(mid);
             LargeNumber temp = mult(divisor, LNmid);
 
+            // Проверяем, что не вышли за границы
             if (compareLN(temp, current) <= 0) {
                 x = mid;
                 left = mid + 1;
@@ -176,7 +174,6 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
         current = absSub(current, temp);
     }
 
-    // Удаляем ведущие нули
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
 
@@ -184,11 +181,16 @@ LargeNumber LNMath::div(const LargeNumber& a, const LargeNumber& b) {
 }
 
 LargeNumber LNMath::pow(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber result;
+
+    if (a.large_number[0] == 1 && !b.positive) {
+        result.large_number.push_back(1);
+        return result;
+    }
+
     if (!b.positive) {
         throw std::runtime_error("Error: power is negative!");
     }
-
-    LargeNumber result;
     
     if (b.large_number[0] == 0) {
         result.large_number.push_back(1);
@@ -202,25 +204,45 @@ LargeNumber LNMath::pow(const LargeNumber& a, const LargeNumber& b) {
     result.large_number.push_back(1);
 
     while (compareLN(pow, zero) > 0) {
-        // если степень нечетная, то умножаем результат на base
+        // Если степень нечетная, то умножаем результат на base
         if (pow.large_number[0] % 2 == 1) {
             result = mult(result, base);
         }
         base = mult(base, base);
         
-        // делим степень на 2
-        uint32_t carry = 0;
-        for (int i = pow.large_number.size() - 1; i >= 0; --i) {
-            uint64_t cur = (uint64_t)carry * BASE + pow.large_number[i];
-            pow.large_number[i] = cur / 2;
-            carry = cur % 2;
-        }
+        // Делим степень на 2
+        LargeNumber two;
+        two.large_number.push_back(2);
+        pow = div(pow, two);
+
         // Убираем ведущие нули
         while (pow.large_number.size() > 1 && pow.large_number.back() == 0)
             pow.large_number.pop_back();
     }
 
-    result.positive = (a.positive || (b.large_number[0] % 2 == 0));
+    result.positive = (b.large_number[0] % 2 == 0) ? true : a.positive;
+    return result;
+}
+
+LargeNumber LNMath::gcd(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber A = a;
+    LargeNumber B = b;
+
+    while (!(B.large_number.size() == 1 && B.large_number[0] == 0)) {
+        LargeNumber temp = mod(A, B);
+        
+        A = B;
+        B = temp;
+    }
+
+    return A;
+}
+
+LargeNumber LNMath::lcm(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber gcd_val = gcd(a, b);
+    LargeNumber mult_val = mult(a, b);
+    LargeNumber result = div(mult_val, gcd_val);
+    result.positive = true;
     return result;
 }
 
@@ -243,14 +265,14 @@ LargeNumber LNMath::absSum(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber result;
     result.positive = (a.positive == b.positive);
 
-    uint64_t carry = 0;  // для переноса
+    uint32_t carry = 0;  // для переноса
     
     // Находим максимальное количество блоков
     size_t repeat = std::max(a.large_number.size(), b.large_number.size());
     
     for (size_t i = 0; i < repeat || carry > 0; i++) {
-        uint64_t blockA = (i < a.large_number.size()) ? a.large_number[i] : 0;
-        uint64_t blockB = (i < b.large_number.size()) ? b.large_number[i] : 0;
+        uint32_t blockA = (i < a.large_number.size()) ? a.large_number[i] : 0;
+        uint32_t blockB = (i < b.large_number.size()) ? b.large_number[i] : 0;
         
         uint64_t sum = blockA + blockB + carry;
         
@@ -273,7 +295,7 @@ LargeNumber LNMath::absSub(const LargeNumber& a, const LargeNumber& b) {
         bigger = &a;
         smaller = &b;
     } else if (compare == -1) {
-        result.positive = b.positive;
+        result.positive = !a.positive;
         bigger = &b;
         smaller = &a;
     } else {
@@ -281,22 +303,34 @@ LargeNumber LNMath::absSub(const LargeNumber& a, const LargeNumber& b) {
         return result;
     }
 
-    int64_t carry = 0;
+    uint32_t carry = 0;
     for (size_t i = 0; i < bigger->large_number.size(); ++i) {
         int64_t cur = (int64_t)bigger->large_number[i] - carry;
-        if (i < smaller->large_number.size()) {
-            cur -= smaller->large_number[i];
+        if (i < smaller->large_number.size()) {  // проверяем, есть ли у меньшего числа еще блок
+            cur -= smaller->large_number[i];  // вычитаем из блока большего числа блок меньшего
         }
 
-        if (cur < 0) {
+        if (cur < 0) {  // если результат получился отрицательным
             cur += BASE; 
-            carry = 1;
+            carry = 1;  // берем у старшего блока единицу
         } else {
             carry = 0;
         }
 
-        result.large_number.push_back((uint32_t)cur);
+        result.large_number.push_back(cur);
     }
 
     return result;
+}
+
+LargeNumber LNMath::mod(const LargeNumber& a, const LargeNumber& b) {
+    LargeNumber integer_part = div(a, b);  // целая часть
+    LargeNumber product = mult(integer_part, b);  // произведение
+    LargeNumber remainder = sub(a, product);  // остаток
+
+    // Убираем ведущие нули
+    while (remainder.large_number.size() > 1 && remainder.large_number.back() == 0)
+        remainder.large_number.pop_back();
+
+    return remainder;
 }

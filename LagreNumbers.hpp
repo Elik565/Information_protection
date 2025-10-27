@@ -27,9 +27,12 @@ public:
     static LargeNumber mult(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber div(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber pow(const LargeNumber& a, const LargeNumber& b);
+    static LargeNumber gcd(const LargeNumber& a, const LargeNumber& b);  // наибольший общий делитель
+    static LargeNumber lcm(const LargeNumber& a, const LargeNumber& b);  // наименьшее общее кратное
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber absSum(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber absSub(const LargeNumber& a, const LargeNumber& b);
+    static LargeNumber mod(const LargeNumber& a, const LargeNumber& b);
 };
