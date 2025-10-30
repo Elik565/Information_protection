@@ -1,6 +1,38 @@
 #include "LagreNumbers.hpp"
 #include <random>
+#include <complex>
+#include <cmath>
 #include <iostream>
+
+const double PI = acos(-1);
+
+void fft(std::vector<std::complex<double>>& a, bool invert) {
+    int n = a.size();
+    for (int i = 1, j = 0; i < n; i++) {
+        int bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) swap(a[i], a[j]);
+    }
+
+    for (int len = 2; len <= n; len <<= 1) {
+        double ang = 2 * PI / len * (invert ? -1 : 1);
+        std::complex<double> wlen(cos(ang), sin(ang));
+        for (int i = 0; i < n; i += len) {
+            std::complex<double> w(1);
+            for (int j = 0; j < len / 2; j++) {
+                std::complex<double> u = a[i + j];
+                std::complex<double> v = a[i + j + len / 2] * w;
+                a[i + j] = u + v;
+                a[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+
+    if (invert)
+        for (std::complex<double>& x : a) x /= n;
+}
 
 std::string generateLN(int size) {
     static std::mt19937 gen(std::random_device{}());
@@ -88,32 +120,59 @@ LargeNumber LNMath::sub(const LargeNumber& a, const LargeNumber& b) {
 }
 
 LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
-    LargeNumber result;
-    a.positive == b.positive ? result.positive = true : result.positive = false;
-
-    if (a.large_number[0] == 0 || b.large_number[0] == 0) {
-        result.large_number = {0};
-        return result;
-    }
-
-    size_t A = a.large_number.size();
-    size_t B = b.large_number.size();
-    result.large_number.assign(A + B, 0);
-
-    for (size_t i = 0; i < A; i++) {
-        uint64_t carry = 0;
-
-        // Каждый блок второго числа домножаем на блок первого
-        for (size_t j = 0; j < B || carry > 0; j++) {
-            uint64_t blockA = a.large_number[i];
-            uint64_t blockB = (j < B) ? b.large_number[j] : 0;
-
-            uint64_t cur = result.large_number[i + j] + blockA * blockB + carry;
-
-            result.large_number[i + j] = cur % BASE;  // перезаписываем, т.к. учли на пред. шаге
-            carry = cur / BASE;
+    std::vector<int> A, B;
+    for (auto x : a.large_number) {
+        for (int i = 0; i < 9; i++) {
+            A.push_back(x % 10);
+            x /= 10;
         }
     }
+    for (auto x : b.large_number) {
+        for (int i = 0; i < 9; i++) {
+            B.push_back(x % 10);
+            x /= 10;
+        }
+    }
+
+    int n = 1;
+    while (n < (int)A.size() + (int)B.size()) n <<= 1;
+    std::vector<std::complex<double>> fa(A.begin(), A.end()), fb(B.begin(), B.end());
+    fa.resize(n); fb.resize(n);
+
+    fft(fa, false);
+    fft(fb, false);
+    for (int i = 0; i < n; i++) fa[i] *= fb[i];
+    fft(fa, true);
+
+    std::vector<uint64_t> res(n);
+    for (int i = 0; i < n; i++) res[i] = (uint64_t)(fa[i].real() + 0.5);
+
+    uint64_t carry = 0;
+    for (int i = 0; i < n; i++) {
+        uint64_t cur = res[i] + carry;
+        res[i] = cur % 10;
+        carry = cur / 10;
+    }
+
+    while (carry) {
+        res.push_back(carry % 10);
+        carry /= 10;
+    }
+
+    // Преобразуем обратно в твой формат large_number
+    LargeNumber result;
+    result.positive = (a.positive == b.positive);
+    uint64_t block = 0, p = 1;
+    for (size_t i = 0; i < res.size(); i++) {
+        block += res[i] * p;
+        p *= 10;
+        if (p == BASE) {
+            result.large_number.push_back(block);
+            block = 0;
+            p = 1;
+        }
+    }
+    if (block > 0) result.large_number.push_back(block);
 
     while (result.large_number.size() > 1 && result.large_number.back() == 0)
         result.large_number.pop_back();
