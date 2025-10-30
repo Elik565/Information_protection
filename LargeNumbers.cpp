@@ -136,13 +136,14 @@ LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
 
     int n = 1;
     while (n < (int)A.size() + (int)B.size()) n <<= 1;
+
     std::vector<std::complex<double>> fa(A.begin(), A.end()), fb(B.begin(), B.end());
     fa.resize(n); fb.resize(n);
 
     fft(fa, false);
     fft(fb, false);
     for (int i = 0; i < n; i++) fa[i] *= fb[i];
-    fft(fa, true);
+        fft(fa, true);
 
     std::vector<uint64_t> res(n);
     for (int i = 0; i < n; i++) res[i] = (uint64_t)(fa[i].real() + 0.5);
@@ -159,7 +160,6 @@ LargeNumber LNMath::mult(const LargeNumber& a, const LargeNumber& b) {
         carry /= 10;
     }
 
-    // Преобразуем обратно в твой формат large_number
     LargeNumber result;
     result.positive = (a.positive == b.positive);
     uint64_t block = 0, p = 1;
@@ -283,6 +283,36 @@ LargeNumber LNMath::pow(const LargeNumber& a, const LargeNumber& b) {
     return result;
 }
 
+LargeNumber LNMath::sqrt(const LargeNumber& a) {
+    if (a.large_number.size() == 1 && a.large_number[0] == 0)
+        return a;
+
+    LargeNumber x = a; 
+    LargeNumber two;
+    two.large_number.push_back(2);
+
+    LargeNumber prev;
+
+    while (true) {
+        LargeNumber nx = div(sum(x, div(a, x)), two);
+
+        if (compareLN(nx, x) == 0 || compareLN(nx, prev) == 0) {
+            break;
+        }
+
+        prev = x;
+        x = nx;
+    }
+
+    LargeNumber one;
+    one.large_number.push_back(1);
+    while (compareLN(mult(x, x), a) > 0) {
+        x = sub(x, one);
+    }
+
+    return x;
+}
+
 LargeNumber LNMath::gcd(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber A = a;
     LargeNumber B = b;
@@ -303,6 +333,48 @@ LargeNumber LNMath::lcm(const LargeNumber& a, const LargeNumber& b) {
     LargeNumber result = div(mult_val, gcd_val);
     result.positive = true;
     return result;
+}
+
+bool LNMath::isPrime(const LargeNumber& a) {
+    if (!a.positive || (a.large_number.size() == 1 && (a.large_number[0] == 0 || a.large_number[0] == 1))) {
+        return 0;
+    }
+
+    if (a.large_number[0] % 2 == 0 && a.large_number.size() != 1) {
+        return false;
+    }
+
+    if (a.large_number[0] % 10 == 0 || a.large_number[0] % 10 == 5) {
+        return false;
+    }
+
+    // Проверка на деление суммы цифр на 3 и 9
+    int sum_digits = 0;
+    LargeNumber copy = a;
+    std::string s = copy.toString();
+    for (size_t i = 1; i < s.size(); ++i) {
+        sum_digits += s[i] - '0';
+    }
+
+    if (sum_digits % 3 == 0  || sum_digits % 9 == 0) {
+        return (s == "+3");  // только 3 простое число
+    }
+
+    LargeNumber i;
+    i.large_number.push_back(3);  // начинаем с 3
+    LargeNumber one; one.large_number.push_back(1);
+    LargeNumber step; step.large_number.push_back(2);  // проверяем только нечётные
+
+    LargeNumber sqrt = LNMath::sqrt(a);
+
+    while (compareLN(i, sqrt) <= 0) {
+        LargeNumber mod_res = LNMath::mod(a, i);
+        if (mod_res.large_number.size() == 1 && mod_res.large_number[0] == 0)
+            return false;
+        i = LNMath::sum(i, step);
+    }
+
+    return true;
 }
 
 int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {

@@ -10,7 +10,7 @@ class LargeNumber {
     friend class LNMath;
 private:
     std::vector<uint32_t> large_number;
-    bool positive;
+    bool positive = true;
 
 public:
     // Конструкторы
@@ -27,8 +27,10 @@ public:
     static LargeNumber mult(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber div(const LargeNumber& a, const LargeNumber& b);
     static LargeNumber pow(const LargeNumber& a, const LargeNumber& b);
+    static LargeNumber sqrt(const LargeNumber&a);
     static LargeNumber gcd(const LargeNumber& a, const LargeNumber& b);  // наибольший общий делитель
     static LargeNumber lcm(const LargeNumber& a, const LargeNumber& b);  // наименьшее общее кратное
+    static bool isPrime(const LargeNumber& a);
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);
