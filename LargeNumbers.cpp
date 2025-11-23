@@ -79,6 +79,10 @@ LargeNumber::LargeNumber(uint64_t LN) {
         large_number.push_back((uint32_t)(LN % BASE));
         LN /= BASE;
     }
+
+    if (large_number.size() == 0) {
+        large_number.push_back(0);
+    }
 }
 
 std::string LargeNumber::toString() {
@@ -442,6 +446,22 @@ bool LNMath::sieveAtkin(const LargeNumber& a) {
     }
 
     return true;
+}
+
+bool LNMath::LucasLehmer(const LargeNumber& a, uint64_t p) {
+    if (p < 2) return false;
+
+    // Проверяем, что p — простое
+    if (!isPrimeStd(LargeNumber(p))) return false;
+
+    LargeNumber s(4);
+
+    for (uint64_t i = 0; i < p - 2; ++i) {
+        s = absSub(mult(s, s), LargeNumber(2));
+        s = mod(s, a);
+    }
+
+    return compareLN(s, LargeNumber(0)) == 0;
 }
 
 

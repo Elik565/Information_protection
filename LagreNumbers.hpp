@@ -34,6 +34,7 @@ public:
     static bool isPrimeStd(const LargeNumber& a);
     static bool sieveEratosthenes(const LargeNumber& a);
     static bool sieveAtkin(const LargeNumber& a);
+    static bool LucasLehmer(const LargeNumber& a, uint64_t p);
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);
