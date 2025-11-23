@@ -46,6 +46,8 @@ public:
     static bool MillerRabin(const LargeNumber&a, int iterations = 2);
     static int jacobi(LargeNumber a, const LargeNumber& n);
     static LucasParams findLucasParameters(const LargeNumber& a);
+    static LargeNumber computeLucasU(const LargeNumber& n, const LargeNumber& P, 
+                                const LargeNumber& Q, const LargeNumber& D);
     static bool StrongLucasTest(const LargeNumber& a);
 
 private:
