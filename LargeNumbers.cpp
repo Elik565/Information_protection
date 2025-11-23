@@ -74,13 +74,18 @@ LargeNumber::LargeNumber(std::string& stringLN) {
     }
 }
 
-LargeNumber::LargeNumber(uint64_t LN) {
+LargeNumber::LargeNumber(int64_t LN) {
+    if (LN < 0) {
+        positive = false;
+        LN = -LN;  // берём модуль для хранения блоков
+    }
+
     while (LN > 0) {
-        large_number.push_back((uint32_t)(LN % BASE));
+        large_number.push_back(static_cast<uint32_t>(LN % BASE));
         LN /= BASE;
     }
 
-    if (large_number.size() == 0) {
+    if (large_number.empty()) {
         large_number.push_back(0);
     }
 }
@@ -464,6 +469,185 @@ bool LNMath::LucasLehmer(const LargeNumber& a, uint64_t p) {
     return compareLN(s, LargeNumber(0)) == 0;
 }
 
+bool LNMath::MillerRabin(const LargeNumber& a, int iterations) {
+    if (compareLN(a, LargeNumber(2)) < 0) return false;
+    if (compareLN(a, LargeNumber(2)) == 0) return true;
+    if (a.large_number[0] % 2 == 0) return false;
+
+    LargeNumber d = absSub(a, LargeNumber(1));
+    int s = 0;
+    while (d.large_number[0] % 2 == 0) {
+        d = div(d, LargeNumber(2));
+        s++;
+    }
+
+    std::mt19937_64 gen(std::random_device{}());
+
+    for (int iter = 0; iter < iterations; ++iter) {
+        LargeNumber range = absSub(a, LargeNumber(4));
+        uint64_t rnd = gen();
+
+        uint64_t r = rnd % 1000000 + 2;
+        if (compareLN(LargeNumber(r), range) > 0)
+            r = 2;
+
+        LargeNumber a_test(r);
+        LargeNumber x = mod(pow(a_test, d), a);
+
+        if (compareLN(x, LargeNumber(1)) == 0 ||
+            compareLN(x, absSub(a, LargeNumber(1))) == 0)
+            continue;
+
+        bool composite = true;
+
+        for (int r_i = 1; r_i < s; ++r_i) {
+            x = mod(mult(x, x), a);
+            if (compareLN(x, absSub(a, LargeNumber(1))) == 0) {
+                composite = false;
+                break;
+            }
+            if (compareLN(x, LargeNumber(1)) == 0)
+                return false;
+        }
+
+        if (composite)
+            return false;
+    }
+
+    return true;
+}
+
+int LNMath::jacobi(LargeNumber a, const LargeNumber& n) {
+    LargeNumber zero(0);
+    LargeNumber one(1);
+    LargeNumber two(2);
+    LargeNumber four(4);
+
+    if (compareLN(a, zero) == 0) return 0;
+    if (compareLN(a, one) == 0) return 1;
+
+    int e = 0;
+    while (a.large_number[0] % 2 == 0) {
+        a = div(a, two);
+        e++;
+    }
+
+    // J = (-1)^(e*(n^2-1)/8)
+    int J = 1;
+    LargeNumber n_mod8 = mod(n, LargeNumber(8));
+    if (e % 2 != 0) {
+        if (compareLN(n_mod8, LargeNumber(3)) == 0 || compareLN(n_mod8, LargeNumber(5)) == 0 || compareLN(n_mod8, LargeNumber(7)) == 0) {
+            J = -J;
+        }
+    }
+
+    LargeNumber a_mod4 = mod(a, four);
+    if (compareLN(a_mod4, LargeNumber(3)) == 0) {
+        LargeNumber n_mod4 = mod(n, four);
+        if (compareLN(n_mod4, LargeNumber(3)) == 0) J = -J;
+    }
+
+    LargeNumber a_modn = mod(n, a);
+
+    return J * jacobi(a_modn, a);
+}
+
+LucasParams LNMath::findLucasParameters(const LargeNumber& a) {
+    LargeNumber one(1);
+    LargeNumber minusOne(-1);
+
+    int sign = 1;
+    int d_val = 5;
+
+    while (true) {
+        LargeNumber D = LargeNumber(d_val);
+        if (sign < 0) D.positive = false;
+
+        if (compareLN(LNMath::gcd(D, a), one) == 0) {
+            int jac = LNMath::jacobi(D, a);
+            if (jac == -1) {
+                LucasParams params;
+                params.P = one;                      
+                params.D = D;              
+                params.Q = LNMath::div(absSub(one, D), LargeNumber(4));
+                return params;
+            }
+        }
+
+        if (sign > 0) {
+            sign = -1;
+        } else {
+            sign = 1;
+            d_val += 2;
+        }
+    }
+}
+
+bool LNMath::StrongLucasTest(const LargeNumber& a) {
+    LargeNumber one(1);
+    LargeNumber two(2);
+
+    if (compareLN(a, two) < 0) return false;
+    if (compareLN(a, two) == 0) return true;
+    if (a.large_number[0] % 2 == 0) return false;
+
+    LucasParams params = findLucasParameters(a);
+    LargeNumber P = params.P;
+    LargeNumber Q = params.Q;
+    LargeNumber D = params.D;
+
+    LargeNumber d = absSub(a, one);
+    int s = 0;
+    while (d.large_number[0] % 2 == 0) {
+        d = div(d, two);
+        s++;
+    }
+
+    std::vector<int> bits;
+    LargeNumber tmp_d = d;
+    while (compareLN(tmp_d, LargeNumber(0)) > 0) {
+        bits.push_back(tmp_d.large_number[0] % 2);
+        tmp_d = div(tmp_d, two);
+    }
+
+    LargeNumber U = one;
+    LargeNumber V = P;
+    LargeNumber Q_k = Q;
+
+    for (int i = bits.size() - 1; i >= 0; --i) {
+        // удвоение
+        LargeNumber U2 = LNMath::mod(LNMath::mult(U, V), a);
+        LargeNumber V2 = LNMath::mod(LNMath::sub(LNMath::mult(V, V), LNMath::mult(two, Q_k)), a);
+        Q_k = LNMath::mod(LNMath::mult(Q_k, Q_k), a);
+        U = U2;
+        V = V2;
+
+        // если бит равен 1 → умножение на базовый элемент
+        if (bits[i] == 1) {
+            LargeNumber U_new = LNMath::mod(LNMath::sum(LNMath::mult(P, U), V), a);
+            U_new = LNMath::mod(LNMath::div(U_new, two), a);
+            LargeNumber V_new = LNMath::mod(LNMath::sum(LNMath::mult(D, U), LNMath::mult(P, V)), a);
+            V_new = LNMath::mod(LNMath::div(V_new, two), a);
+            U = U_new;
+            V = V_new;
+            Q_k = LNMath::mod(LNMath::mult(Q_k, Q), a); // корректировка Q^k
+        }
+    }
+
+    // 4. Проверка U_d
+    if (compareLN(U, LargeNumber(0)) == 0) return true;
+
+    // 5. Проверка V_{d*2^r} для r = 0..s-1
+    LargeNumber V_r = V;
+    Q_k = Q;
+    for (int r = 0; r < s; ++r) {
+        if (compareLN(V_r, LargeNumber(0)) == 0) return true;
+        V_r = LNMath::mod(LNMath::sub(LNMath::mult(V_r, V_r), LNMath::mult(two, Q_k)), a);
+        Q_k = LNMath::mod(LNMath::mult(Q_k, Q_k), a);
+    }
+
+    return 0;
+}
 
 // Auxiliary functions
 int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {

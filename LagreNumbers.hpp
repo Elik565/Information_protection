@@ -16,9 +16,15 @@ public:
     // Конструкторы
     LargeNumber() {};
     LargeNumber(std::string& stringLN);  // парсинг строки
-    LargeNumber(uint64_t LN);  // из uint64_t
+    LargeNumber(int64_t LN);  // из int64_t
 
     std::string toString();
+};
+
+struct LucasParams {
+    LargeNumber P;
+    LargeNumber Q;
+    LargeNumber D;
 };
 
 class LNMath {
@@ -31,10 +37,16 @@ public:
     static LargeNumber sqrt(const LargeNumber&a);
     static LargeNumber gcd(const LargeNumber& a, const LargeNumber& b);  // наибольший общий делитель
     static LargeNumber lcm(const LargeNumber& a, const LargeNumber& b);  // наименьшее общее кратное
+
     static bool isPrimeStd(const LargeNumber& a);
     static bool sieveEratosthenes(const LargeNumber& a);
     static bool sieveAtkin(const LargeNumber& a);
     static bool LucasLehmer(const LargeNumber& a, uint64_t p);
+
+    static bool MillerRabin(const LargeNumber&a, int iterations = 2);
+    static int jacobi(LargeNumber a, const LargeNumber& n);
+    static LucasParams findLucasParameters(const LargeNumber& a);
+    static bool StrongLucasTest(const LargeNumber& a);
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);
