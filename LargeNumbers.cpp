@@ -74,6 +74,13 @@ LargeNumber::LargeNumber(std::string& stringLN) {
     }
 }
 
+LargeNumber::LargeNumber(uint64_t LN) {
+    while (LN > 0) {
+        large_number.push_back((uint32_t)(LN % BASE));
+        LN /= BASE;
+    }
+}
+
 std::string LargeNumber::toString() {
     std::string str = "";
 
@@ -335,7 +342,7 @@ LargeNumber LNMath::lcm(const LargeNumber& a, const LargeNumber& b) {
     return result;
 }
 
-bool LNMath::isPrime(const LargeNumber& a) {
+bool LNMath::isPrimeStd(const LargeNumber& a) {
     if (!a.positive || (a.large_number.size() == 1 && (a.large_number[0] == 0 || a.large_number[0] == 1))) {
         return 0;
     }
@@ -377,6 +384,68 @@ bool LNMath::isPrime(const LargeNumber& a) {
     return true;
 }
 
+bool LNMath::sieveEratosthenes(const LargeNumber& a) {
+    if (compareLN(a, LargeNumber(2)) < 0) return false;
+    if (compareLN(a, LargeNumber(2)) == 0) return true;
+    if (compareLN(a, LargeNumber(3)) == 0) return true;
+    if (mod(a, LargeNumber(2)).large_number[0] == 0) return false;
+
+    LargeNumber limit = sqrt(a);  // предел проверки
+    LargeNumber i(3);
+    LargeNumber two(2);
+
+    while (compareLN(i, limit) <= 0) {
+        if (mod(a, i).large_number[0] == 0) return false;
+        i = absSum(i, two);
+    }
+
+    return true;
+}
+
+bool LNMath::sieveAtkin(const LargeNumber& a) {
+    if (compareLN(a, LargeNumber(2)) < 0) return false;
+    if (compareLN(a, LargeNumber(2)) == 0) return true;
+    if (compareLN(a, LargeNumber(3)) == 0) return true;
+    if (mod(a, LargeNumber(2)).large_number[0] == 0) return false;
+    if (mod(a, LargeNumber(3)).large_number[0] == 0) return false;
+
+    if (mod(a, LargeNumber(2)).large_number[0] == 0) return false;
+
+    LargeNumber limit = sqrt(a);  // предел проверки
+    LargeNumber one(1), two(2), three(3), four(4);
+
+    for (uint64_t x = 1; ; ++x) {
+        LargeNumber X2 = LargeNumber(x * x);
+        if (compareLN(X2, limit) > 0) break;
+
+        for (uint64_t y = 1; ; ++y) {
+            LargeNumber Y2 = LargeNumber(y * y);
+            LargeNumber n;
+
+            n = absSum(mult(four, X2), Y2);
+            if (compareLN(n, limit) > 0) break;
+            if (n.large_number[0] % 12 == 1 || n.large_number[0] % 12 == 5)
+                if (mod(a, n).large_number[0] == 0) return false;
+
+            n = absSum(mult(three, X2), Y2);
+            if (compareLN(n, limit) > 0) break;
+            if (n.large_number[0] % 12 == 7)
+                if (mod(a, n).large_number[0] == 0) return false;
+
+            if (x > y) {
+                n = absSub(mult(three, X2), Y2);
+                if (compareLN(n, limit) > 0) break;
+                if (n.large_number[0] % 12 == 11)
+                    if (mod(a, n).large_number[0] == 0) return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+
+// Auxiliary functions
 int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {
     if (a.large_number.size() > b.large_number.size()) {
         return 1;
