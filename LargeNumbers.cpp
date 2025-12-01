@@ -3,6 +3,7 @@
 #include <complex>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 
 const double PI = acos(-1);
 
@@ -517,141 +518,237 @@ bool LNMath::MillerRabin(const LargeNumber& a, int iterations) {
     return true;
 }
 
-int LNMath::jacobi(LargeNumber a, const LargeNumber& num) {
-    LargeNumber n = num;
-    if (n.toString() == "1") return 1;
+int LNMath::jacobi(LargeNumber a, const LargeNumber& n) {
+    // Квадратичный закон взаимности
+    if (!n.positive || n.large_number.empty() || 
+        (n.large_number[0] % 2 == 0)) {
+        return 0;
+    }
     
-    LargeNumber zero(0);
-    LargeNumber one(1);
-    LargeNumber two(2);
-    LargeNumber four(4);
-    
-    // Проверка на четность
-    LargeNumber mod_check = mod(n, two);
-    if (mod_check.toString() == "0") return 0;
-    
-    // Приводим a по модулю n
     a = mod(a, n);
     
+    LargeNumber num = n;
     int result = 1;
     
-    while (compareLN(a, zero) > 0) {
-        // Убираем множители 2
-        while (mod(a, two).toString() == "0") {
-            a = div(a, two);
-            LargeNumber mod8 = mod(n, LargeNumber(8));
-            if (mod8.toString() == "3" || mod8.toString() == "5") {
+    while (compareLN(a, LargeNumber(0)) != 0) {
+        while (a.large_number.empty() || 
+               (a.large_number[0] % 2 == 0)) {
+            uint64_t carry = 0;
+            for (int i = a.large_number.size() - 1; i >= 0; --i) {
+                uint64_t cur = a.large_number[i] + carry * BASE;
+                a.large_number[i] = static_cast<uint32_t>(cur / 2);
+                carry = cur % 2;
+            }
+            
+            while (!a.large_number.empty() && a.large_number.back() == 0) {
+                a.large_number.pop_back();
+            }
+            
+            uint32_t n_mod_8 = num.large_number[0] % 8;
+            
+            if (n_mod_8 == 3 || n_mod_8 == 5) {
                 result = -result;
             }
         }
         
-        // Меняем местами a и n
         LargeNumber temp = a;
-        a = n;
-        n = temp;
+        a = num;
+        num = temp;
         
-        // Проверяем условие взаимности
-        if (mod(a, four).toString() == "3" && mod(n, four).toString() == "3") {
+        uint32_t a_mod_4 = a.large_number[0] % 4;
+        uint32_t num_mod_4 = num.large_number[0] % 4;
+        
+        if (a_mod_4 == 3 && num_mod_4 == 3) {
             result = -result;
         }
         
-        a = mod(a, n);
+        a = mod(a, num);
     }
     
-    if (n.toString() == "1") return result;
+    if (compareLN(num, LargeNumber(1)) == 0) {
+        return result;
+    }
+    
     return 0;
 }
 
 LucasParams LNMath::findLucasParameters(const LargeNumber& a) {
-    LargeNumber D(5);
-    LargeNumber one(1);
-    LargeNumber two(2);
+    LucasParams params;
+    
+    // Проверка входных данных
+    if (!a.positive || a.large_number.empty() || 
+        compareLN(a, LargeNumber(5)) < 0 ||  // a < 5
+        (a.large_number[0] % 2 == 0)) {      // a четное
+        params.P = LargeNumber(0);
+        params.Q = LargeNumber(0);
+        params.D = LargeNumber(0);
+        return params;
+    }
+    
+    LargeNumber P, Q(1), D;
+    LargeNumber two(2), four(4), five(5);
+    LargeNumber minusOne(-1);
+    
+    // Методика Selfridge для выбора параметров
+    // Пробуем P из последовательности 3, 4, 5, 6, ...
+    // Пока не найдем D с (D/a) = -1
+    
+    // Начинаем с P = 3
+    P = LargeNumber(3);
     
     while (true) {
-        // Вычисляем символ Якоби (D/n)
+        
+        // Вычисляем D = P^2 - 4*Q
+        LargeNumber P_squared = mult(P, P);
+        LargeNumber four_Q = mult(four, Q);
+        D = sub(P_squared, four_Q);
+        
+        // Убедимся, что D ≠ 0
+        if (compareLN(D, LargeNumber(0)) == 0) {
+            // Увеличиваем P и продолжаем
+            P = sum(P, LargeNumber(1));
+            continue;
+        }
+        
+        // Вычисляем символ Якоби
         int jac = jacobi(D, a);
         
         if (jac == -1) {
-            // Нашли подходящий D
-            LargeNumber P(1);
-            LargeNumber Q = div(sub(one, D), LargeNumber(4));
-            return {D, P, Q};
+            // Успех! Нашли параметры
+            break;
         }
         
-        if (jac == 0 && compareLN(D, a) < 0) {
-            // n составное
-            return {D, LargeNumber(0), LargeNumber(0)};
+        if (jac == 0) {
+            // D делит a (с некоторой вероятностью)
+            // Проверим точно
+            LargeNumber rem = mod(a, D);
+            if (compareLN(rem, LargeNumber(0)) == 0) {
+                // a составное
+                params.P = LargeNumber(0);
+                params.Q = LargeNumber(0);
+                params.D = LargeNumber(0);
+                return params;
+            }
         }
         
-        // Пробуем следующее D
-        if (D.positive) {
-            D = absSum(D, two);
-            D.positive = false; // Следующее D будет отрицательным
+        // Сначала попробуем изменить Q
+        if (compareLN(Q, LargeNumber(1)) == 0) {
+            Q = minusOne;
         } else {
-            D = absSub(D.positive ? D : absSub(LargeNumber(0), D), two);
-            D.positive = true; // Следующее D будет положительным
+            Q = LargeNumber(1);
+            P = sum(P, LargeNumber(1));
+            
+            if (P.large_number[0] % 2 == 0) {
+                P = sum(P, LargeNumber(1));
+            }
         }
     }
+    
+    params.P = P;
+    params.Q = Q;
+    params.D = D;
+    
+    return params;
 }
 
-LargeNumber LNMath::computeLucasU(const LargeNumber& n, const LargeNumber& P, 
-                                const LargeNumber& Q, const LargeNumber& D) {
-    // Вычисляем k = n - (D/n), где (D/n) - символ Якоби
-    int jac = jacobi(D, n);
-    LargeNumber k = sub(n, jac == -1 ? LargeNumber(1) : LargeNumber(0));
+bool LNMath::StrongLucasTest(const LargeNumber& n) {
+    // 1. Быстрые проверки
+    if (compareLN(n, LargeNumber(2)) < 0) return false;
+    if (compareLN(n, LargeNumber(3)) == 0) return true;
+    if (compareLN(n, LargeNumber(2)) == 0) return true;
+    if (n.large_number[0] % 2 == 0) return false;
     
-    // Вычисляем U_k mod n с помощью бинарного возведения в степень
-    LargeNumber U(1);
-    LargeNumber V = P;
-    LargeNumber Q_k = Q;
-    
-    LargeNumber current_k = k;
-    LargeNumber two(2);
-    LargeNumber one(1);
-    LargeNumber zero(0);
-    
-    while (compareLN(current_k, zero) > 0) {
-        // Если текущий k нечетный
-        LargeNumber mod_check = mod(current_k, two);
-        if (mod_check.toString() != "0") {
-            // Обновляем U и V для нечетного шага
-            // U = (U * V) % n
-            U = mod(mult(U, V), n);
-            // V = (V * V - 2 * Q_k) % n
-            V = mod(sub(mult(V, V), mult(two, Q_k)), n);
-            // Q_k = (Q_k * Q_k) % n
-            Q_k = mod(mult(Q_k, Q_k), n);
-        } else {
-            // Обновляем только V и Q_k для четного шага
-            // V = (V * V - 2 * Q_k) % n
-            V = mod(sub(mult(V, V), mult(two, Q_k)), n);
-            // Q_k = (Q_k * Q_k) % n
-            Q_k = mod(mult(Q_k, Q_k), n);
-        }
-        
-        // Делим k на 2
-        current_k = div(current_k, two);
-    }
-    
-    return U;
-}
-
-bool LNMath::StrongLucasTest(const LargeNumber& a) {
-    LargeNumber n = a;
-    if (n.toString() == "0" || n.toString() == "1") return false;
-    if (n.toString() == "2") return true;
-    
-    LargeNumber even_check = mod(n, LargeNumber(2));
-    if (even_check.toString() == "0") return false;
-
-    // Находим параметры D, P, Q для теста Люка
+    // 2. Получаем параметры (для 1000003: P=3, Q=1, D=5)
     LucasParams params = findLucasParameters(n);
     
-    // Вычисляем U_{n+1} mod n
-    LargeNumber U = computeLucasU(n, params.P, params.Q, params.D);
+    // 3. Вычисляем d, s: n+1 = d * 2^s
+    LargeNumber m = sum(n, LargeNumber(1));  // m = n+1 = 1000004
+    LargeNumber d = m;  // d = 1000004
+    LargeNumber s(0);
+    LargeNumber two(2);
+    LargeNumber zero(0);
+    LargeNumber one(1);
     
-    // Если U_{n+1} ≡ 0 mod n, то n вероятно простое
-    return (U.toString() == "0");
+    // Делим d на 2 пока четное
+    while (compareLN(d, zero) > 0 && d.large_number[0] % 2 == 0) {
+        d = div(d, two);
+        s = sum(s, one);
+    }
+    // Теперь d = 250001, s = 2
+    
+    // 4. Вычисляем обратный к 2 по модулю n
+    // Для нечетного n: inverse(2) = (n+1)/2 mod n
+    LargeNumber inverse_two = div(sum(n, one), two);
+    
+    // 5. Получаем двоичное представление d
+    std::vector<bool> bits;
+    LargeNumber temp_d = d;
+    
+    while (compareLN(temp_d, zero) > 0) {
+        LargeNumber rem = mod(temp_d, two);
+        bits.push_back(compareLN(rem, one) == 0);
+        temp_d = div(temp_d, two);
+    }
+    
+    // bits содержит биты младшим к старшему
+    // Нужно перевернуть
+    std::reverse(bits.begin(), bits.end());
+    
+    // 6. Инициализация: U = 0, V = 2, U1 = 1, V1 = P
+    LargeNumber U = LargeNumber(0);      // U₀
+    LargeNumber V = LargeNumber(2);      // V₀
+    LargeNumber U1 = LargeNumber(1);     // U₁
+    LargeNumber V1 = params.P;           // V₁ = P = 3
+    LargeNumber Qk = params.Q;           // Q¹ = Q = 1
+    
+    // 7. Проходим по битам d (начиная со второго бита)
+    // Старший бит всегда 1, начинаем с бита на позиции 1
+    for (size_t i = 1; i < bits.size(); ++i) {
+        // Удвоение: (U, V) для 2k
+        LargeNumber U2 = mod(mult(U1, V1), n);
+        LargeNumber V2 = mod(sub(mult(V1, V1), 
+                               mult(two, Qk)), n);
+        Qk = mod(mult(Qk, Qk), n);
+        
+        if (bits[i]) {
+            // Если бит = 1: переходим к 2k+1
+            // U_{2k+1} = (P*U_{2k} + V_{2k})/2
+            LargeNumber term1 = mod(mult(params.P, U2), n);
+            LargeNumber U_next = mod(mult(sum(term1, V2), inverse_two), n);
+            
+            // V_{2k+1} = (D*U_{2k} + P*V_{2k})/2
+            LargeNumber term2 = mod(mult(params.D, U2), n);
+            LargeNumber term3 = mod(mult(params.P, V2), n);
+            LargeNumber V_next = mod(mult(sum(term2, term3), inverse_two), n);
+            
+            // Q^{2k+1} = Q^{2k} * Q
+            Qk = mod(mult(Qk, params.Q), n);
+            
+            U1 = U_next;
+            V1 = V_next;
+        } else {
+            U1 = U2;
+            V1 = V2;
+        }
+    }
+    
+    // 8. Теперь U1 = U_d, V1 = V_d
+    // Проверка условия 1: U_d ≡ 0 mod n
+    if (compareLN(mod(U1, n), zero) == 0) {
+        return true;
+    }
+    
+    // 9. Проверка условия 2: V_{d*2^r} ≡ 0 mod n для r = 0..s-1
+    LargeNumber current_V = V1;
+    for (LargeNumber r(0); compareLN(r, s) < 0; r = sum(r, one)) {
+        if (compareLN(mod(current_V, n), zero) == 0) {
+            return true;
+        }
+        // V_{2k} = V_k^2 - 2 mod n
+        current_V = mod(sub(mult(current_V, current_V), two), n);
+    }
+    
+    return false;
 }
 
 
