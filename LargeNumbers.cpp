@@ -713,6 +713,26 @@ bool LNMath::StrongLucasTest(const LargeNumber& n) {
     return false;
 }
 
+bool LNMath::BailliePSW(const LargeNumber& a) {
+    if (a.large_number.size() == 1) {
+        uint64_t val = a.large_number[0];
+        if (val <= 1) return false;
+        if (val <= 3) return true;
+        if (val % 2 == 0) return false;
+    }
+    
+    LargeNumber sqrt_n = sqrt(a);
+    LargeNumber sqrt_squared = mult(sqrt_n, sqrt_n);
+    if (compareLN(sqrt_squared, a) == 0) {
+        return false;
+    }
+
+    if (!MillerRabin(a)) {
+        return false; 
+    }
+    
+    return StrongLucasTest(a);
+}
 
 // Auxiliary functions
 int LNMath::compareLN(const LargeNumber& a, const LargeNumber& b) {

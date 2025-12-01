@@ -43,12 +43,13 @@ public:
     static bool sieveAtkin(const LargeNumber& a);
     static bool LucasLehmer(const LargeNumber& a, uint64_t p);
 
-    static bool MillerRabin(const LargeNumber&a, int iterations = 2);
+    static bool MillerRabin(const LargeNumber&a, int iterations = 1);
     static int jacobi(LargeNumber a, const LargeNumber& n);
     static LucasParams findLucasParameters(const LargeNumber& a);
     static LargeNumber computeLucasU(const LargeNumber& n, const LargeNumber& P, 
                                 const LargeNumber& Q, const LargeNumber& D);
     static bool StrongLucasTest(const LargeNumber& a);
+    static bool BailliePSW(const LargeNumber& n);
 
 private:
     static int compareLN(const LargeNumber& a, const LargeNumber& b);
